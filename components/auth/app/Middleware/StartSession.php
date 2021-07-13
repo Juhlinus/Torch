@@ -3,8 +3,9 @@
 namespace App\Middleware;
 
 use Closure;
+use Illuminate\Routing\Route;
 
-class StartSession
+class StartSession extends \Illuminate\Session\Middleware\StartSession
 {
     /**
      * Handle an incoming request.
@@ -16,6 +17,19 @@ class StartSession
      */
     public function handle($request, Closure $next, $guard = null)
     {
+        if (! $this->sessionConfigured()) {
+            return $next($request);
+        }
+
+        $session = $this->getSession($request);
+
+        if ($this->manager->shouldBlock() ||
+            ($request->route() instanceof Route && $request->route()->locksFor())) {
+            return $this->handleRequestWhileBlocking($request, $session, $next);
+        }
+
+        return $this->handleStatefulRequest($request, $session, $next);
+
         if (session_status() == PHP_SESSION_NONE) {
             // In order to maintain the session between requests, we need to populate the
             // session ID from the supplied cookie

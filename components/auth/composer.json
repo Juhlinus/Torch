@@ -7,7 +7,9 @@
         "illuminate/hashing": "^8.23",
         "illuminate/session": "^8.23",
         "illuminate/cookie": "^8.23",
-        "illuminate/routing": "^8.24"
+        "illuminate/routing": "^8.24",
+        "illuminate/encryption": "^8.23",
+        "illuminate/view": "^8.50"
     },
     "autoload": {
         "psr-4": {

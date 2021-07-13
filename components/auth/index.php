@@ -3,6 +3,7 @@
 require_once 'vendor/autoload.php';
 require_once '../../src/App.php';
 
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Routing\Router;
 use Illuminate\Auth\Access\Gate;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -10,6 +11,7 @@ use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Contracts\Encryption\Encrypter as EncrypterContract;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Database\Capsule\Manager as Capsule;
@@ -20,6 +22,10 @@ use Illuminate\Pipeline\Pipeline;
 use Illuminate\Session\SessionManager;
 
 $container = App::getInstance();
+
+$container->instance(\Illuminate\Contracts\Foundation\Application::class, $container);
+
+$container->alias(\Illuminate\Contracts\Foundation\Application::class, \Illuminate\Contracts\Container\Container::class);
 
 $request = Request::capture();
 
@@ -132,6 +138,48 @@ $container->singleton('cookie', function ($app) {
     );
 });
 
+$container->singleton(EncrypterContract::class, function ($app) {
+    return new Encrypter('1hs8heis)2(-*3d.');
+});
+
+$container->alias('cookie', \Illuminate\Contracts\Cookie\QueueingFactory::class);
+
+// Configuration
+// Note that you can set several directories where your templates are located
+$pathsToTemplates = [__DIR__ . '/templates'];
+$pathToCompiledTemplates = __DIR__ . '/compiled';
+
+// Dependencies
+$filesystem = new \Illuminate\Filesystem\Filesystem;
+$eventDispatcher = new \Illuminate\Events\Dispatcher($container);
+
+// Create View Factory capable of rendering PHP and Blade templates
+$viewResolver = new \Illuminate\View\Engines\EngineResolver;
+$bladeCompiler = new \Illuminate\View\Compilers\BladeCompiler($filesystem, $pathToCompiledTemplates);
+
+$viewResolver->register('blade', function () use ($bladeCompiler) {
+    return new \Illuminate\View\Engines\CompilerEngine($bladeCompiler);
+});
+
+$viewFinder = new \Illuminate\View\FileViewFinder($filesystem, $pathsToTemplates);
+$viewFactory = new \Illuminate\View\Factory($viewResolver, $viewFinder, $eventDispatcher);
+$viewFactory->setContainer($container);
+\Illuminate\Support\Facades\Facade::setFacadeApplication($container);
+$container->instance(\Illuminate\Contracts\View\Factory::class, $viewFactory);
+$container->alias(
+    \Illuminate\Contracts\View\Factory::class, 
+    (new class extends \Illuminate\Support\Facades\View {
+        public static function getFacadeAccessor() { return parent::getFacadeAccessor(); }
+    })::getFacadeAccessor()
+);
+$container->instance(\Illuminate\View\Compilers\BladeCompiler::class, $bladeCompiler);
+$container->alias(
+    \Illuminate\View\Compilers\BladeCompiler::class, 
+    (new class extends \Illuminate\Support\Facades\Blade {
+        public static function getFacadeAccessor() { return parent::getFacadeAccessor(); }
+    })::getFacadeAccessor()
+);
+
 $capsule = new Capsule;
 
 $capsule->addConnection([
@@ -160,7 +208,14 @@ $router = new Router($events, $container);
 
 // Global middlewares
 $globalMiddleware = [
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
     \App\Middleware\StartSession::class,
+    // \Illuminate\Session\Middleware\AuthenticateSession::class,
+    \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    \App\Middleware\VerifyCsrfToken::class,
+    \Illuminate\Routing\Middleware\SubstituteBindings::class,
+    
 ];
 
 // Array middlewares

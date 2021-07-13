@@ -1,19 +1,27 @@
 <?php
 
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Auth;
 
 /** @var $router Router */
-$router->group(['middleware' => 'guest'], function (Router $router) {
+$router->group(['middleware' => ['guest']], function (Router $router) {
     $router->get('login', function (Illuminate\Http\Request $request) {
+
         $loggedIn = App::getInstance()->get('auth')->attempt([
             'email' => 'admin',
             'password' => 'password',
-        ]);
+        ], true);
 
-        \App::getInstance()['session']->regenerate();
+        $request->session()->regenerate();
+
+        // \App::getInstance()['session']->regenerate();
 
         return 'Success auth! <a href="/">Return home</a>';
     });
+});
+
+$router->get('hurr', function () {
+    dd(App::getInstance()['auth']);
 });
 
 $router->group(['middleware' => 'auth'], function (Router $router) {
